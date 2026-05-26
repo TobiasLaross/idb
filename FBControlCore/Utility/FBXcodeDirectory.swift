@@ -56,6 +56,15 @@ public final class FBXcodeDirectory: NSObject {
   }
 
   @objc public class func symlinkedDeveloperDirectory() throws -> String {
+    // Honor DEVELOPER_DIR first, like xcodebuild / xcrun do. The
+    // /var/db/xcode_select_link symlink can be absent on machines configured
+    // via DEVELOPER_DIR or a non-standard xcode-select, in which case
+    // resolvingSymlinksInPath returns the (non-existent) link path and the
+    // companion fatal-errors at startup.
+    if let envDirectory = ProcessInfo.processInfo.environment["DEVELOPER_DIR"], !envDirectory.isEmpty {
+      try validateXcodeDirectory(envDirectory)
+      return envDirectory
+    }
     let directory = ("/var/db/xcode_select_link" as NSString).resolvingSymlinksInPath
     try validateXcodeDirectory(directory)
     return directory
