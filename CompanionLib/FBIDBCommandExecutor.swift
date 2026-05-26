@@ -137,6 +137,18 @@ import XCTestBootstrap
     options.nestedFormat = nestedFormat
     options.enableLogging = true
 
+    // Opt-in (IDB_REMOTE_AX=1) remote-content discovery: also surface elements
+    // from processes other than the frontmost app — system popups (Save
+    // Password, AutoFill, permission alerts) and WebView content — which are
+    // otherwise invisible to describe-all. Off by default so the common path
+    // (every tap/wait probe) pays nothing; when enabled, coverage-gated grid
+    // hit-testing only probes screen regions not already covered by native AX
+    // elements. Only meaningful for a whole-tree query (value == nil).
+    if value == nil, ProcessInfo.processInfo.environment["IDB_REMOTE_AX"] == "1" {
+      options.collectFrameCoverage = true
+      options.remoteContentOptions = FBAccessibilityRemoteContentOptions.`default`()
+    }
+
     let element: FBAccessibilityElement
     if let value {
       element = try await simulator.accessibilityElement(at: value.pointValue)
