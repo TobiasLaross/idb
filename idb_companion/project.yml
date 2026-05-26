@@ -37,6 +37,9 @@ packages:
   swift-collections:
     url: https://github.com/apple/swift-collections.git
     from: 1.0.0
+  swift-atomics:
+    url: https://github.com/apple/swift-atomics.git
+    from: 1.0.0
 
 targets:
   IDBGRPCSwift:
@@ -87,6 +90,8 @@ targets:
         product: NIOSSL
       - package: swift-collections
         product: DequeModule
+      - package: swift-atomics
+        product: Atomics
       - sdk: Foundation.framework
 
   idb_companion:
@@ -153,7 +158,11 @@ targets:
       - framework: ../Build/Products/Release/IDBCompanionUtilities.framework
         embed: true
       - target: IDBGRPCSwift
-        embed: true
+        # embed:false — with the unified absolute products dir, IDBGRPCSwift
+        # already builds into Build/Products/Release alongside the binary
+        # (found at runtime via the @executable_path rpath). Embedding would
+        # copy it onto itself: "Multiple commands produce …IDBGRPCSwift.framework".
+        embed: false
       - package: grpc-swift
         product: GRPC
       - package: swift-protobuf
@@ -168,4 +177,6 @@ targets:
         product: NIOSSL
       - package: swift-collections
         product: DequeModule
+      - package: swift-atomics
+        product: Atomics
       - sdk: Foundation.framework

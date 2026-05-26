@@ -471,6 +471,24 @@ static NSString *const FBAXDiscoveryMethodPointGrid = @"point_grid";
   }
   NSRect frame = element.accessibilityFrame;
 
+  // A non-finite accessibility frame (NaN/Infinity in any component) makes
+  // NSJSONSerialization throw an uncaught exception when this element is
+  // serialized (Foundation's _writeJSONNumber rejects non-finite doubles),
+  // which aborts the *entire* describe-all and crashes the companion. A
+  // single bad element — e.g. a SwiftUI view whose offset is computed as
+  // `0 * .infinity` (NaN) from an unbounded proposed width — must not take
+  // down the whole dump. Clamp non-finite components to 0 and log the
+  // offending element so the app side can be fixed too.
+  if (!isfinite(frame.origin.x) || !isfinite(frame.origin.y) || !isfinite(frame.size.width) || !isfinite(frame.size.height)) {
+    NSLog(@"[idb-ax-sanitize] non-finite accessibilityFrame %@ role=%@ id=%@ label=%@ — clamping to finite",
+          NSStringFromRect(frame), element.accessibilityRole, element.accessibilityIdentifier, element.accessibilityLabel);
+    frame = NSMakeRect(
+      isfinite(frame.origin.x) ? frame.origin.x : 0.0,
+      isfinite(frame.origin.y) ? frame.origin.y : 0.0,
+      isfinite(frame.size.width) ? frame.size.width : 0.0,
+      isfinite(frame.size.height) ? frame.size.height : 0.0);
+  }
+
   // Role is used by multiple keys and needs processing
   // Check FBAXKeysRole first to assign rawRole, then FBAXKeysType can derive from it
   NSString *role = nil;

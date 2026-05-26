@@ -26,7 +26,13 @@ function supports_xattrs() {
 
 # Use build directory outside of repo if xattrs not supported (for Xcode compatibility)
 if supports_xattrs; then
-  BUILD_DIRECTORY=Build
+  # Absolute path: xcodebuild cd's into each SPM package checkout to build it,
+  # so a *relative* SYMROOT/derivedDataPath ("Build/...") resolves to
+  # <checkout>/Build/Products and scatters each package's .swiftmodule into
+  # its own dir — NIOCore then can't find swift-collections' DequeModule /
+  # swift-atomics' Atomics. An absolute path unifies all package output into
+  # one shared products dir so cross-package module search works.
+  BUILD_DIRECTORY="$(pwd)/Build"
 else
   BUILD_DIRECTORY="/tmp/idb-build-$(basename "$(pwd)")"
   echo "Note: Using external build directory at $BUILD_DIRECTORY (xattrs not supported)"
@@ -342,9 +348,23 @@ function build_idb_companion() {
   build_target FBDeviceControl Release
   build_target CompanionLib Release
   build_target IDBCompanionUtilities Release
-  # Build idb_companion from its own project
+  # Strip IDBGRPCSwift from the Embed Frameworks phase. It's a target dep that
+  # builds into the unified products dir (Build/Products/Release); embedding then
+  # copies it onto itself -> "Multiple commands produce IDBGRPCSwift.framework".
+  # xcodegen always embeds target deps (embed:false is ignored) and regenerates
+  # the project every build, so patch the generated pbxproj here. The framework
+  # stays linked and is found at runtime via the @executable_path rpath.
+  sed -i '' '/IDBGRPCSwift.framework in Embed Frameworks/d' \
+    idb_companion/idb_companion.xcodeproj/project.pbxproj
+
+  # Build idb_companion from its own project.
+  # SWIFT_ENABLE_EXPLICIT_MODULES=NO: Xcode 26's explicitly-built-modules
+  # dependency scanner fails to resolve swift-nio's transitive modules
+  # (DequeModule / Atomics) for NIOCore, breaking the SPM package build.
+  # The legacy implicit-module path resolves them fine.
   invoke_xcodebuild \
     ONLY_ACTIVE_ARCH=NO \
+    SWIFT_ENABLE_EXPLICIT_MODULES=NO \
     -project idb_companion/idb_companion.xcodeproj \
     -scheme idb_companion \
     -sdk macosx \
